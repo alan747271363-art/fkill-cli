@@ -117,6 +117,45 @@ const renderProcessForDisplay = (process_, flags, memoryThreshold, cpuThreshold)
 	};
 };
 
+const groupProcessesByName = processes => {
+	const map = new Map();
+
+	for (const process_ of processes) {
+		const existingGroup = map.get(process_.name);
+		if (existingGroup) {
+			existingGroup.processes.push(process_);
+			continue;
+		}
+
+		map.set(process_.name, {
+			name: process_.name,
+			processes: [process_],
+		});
+	}
+
+	return [...map.values()];
+};
+
+const createProcessChoices = (group, flags, memoryThreshold, cpuThreshold) => {
+	const choices = group.processes.map(process_ => renderProcessForDisplay(process_, flags, memoryThreshold, cpuThreshold));
+
+	if (group.processes.length > 1) {
+		choices.push({
+			name: `Kill all ${group.processes.length} ${group.name} processes`,
+			value: group.processes.map(process_ => process_.pid),
+		});
+	}
+
+	return choices;
+};
+
+const createTopLevelProcessChoices = (processes, flags) => {
+	const memoryThreshold = flags.verbose ? 0 : 1;
+	const cpuThreshold = flags.verbose ? 0 : 3;
+
+	return groupProcessesByName(processes).flatMap(group => createProcessChoices(group, flags, memoryThreshold, cpuThreshold));
+};
+
 const searchProcessesByPort = (processes, port) => processes.filter(process_ => process_.ports.includes(port));
 
 const searchProcessByPid = (processes, pid) => processes.find(process_ => String(process_.pid) === pid);
@@ -252,8 +291,6 @@ const findPortsForProcess = (processId, portToPidMap) => {
 };
 
 const listProcesses = async (processes, flags) => {
-	const memoryThreshold = flags.verbose ? 0 : 1;
-	const cpuThreshold = flags.verbose ? 0 : 3;
 	const searcher = new FuzzySearch(processes, ['name'], {caseSensitive: false});
 
 	const selectedPid = await search({
@@ -261,7 +298,7 @@ const listProcesses = async (processes, flags) => {
 		pageSize: 10,
 		async source(term = '') {
 			const matchingProcesses = filterAndSortProcesses(processes, term, searcher, flags);
-			return matchingProcesses.map(process_ => renderProcessForDisplay(process_, flags, memoryThreshold, cpuThreshold));
+			return createTopLevelProcessChoices(matchingProcesses, flags);
 		},
 	});
 
@@ -284,4 +321,9 @@ const init = async flags => {
 	listProcesses(processesWithPorts, flags);
 };
 
-export {init, handleFkillError};
+export {
+	groupProcessesByName,
+	createTopLevelProcessChoices,
+	init,
+	handleFkillError,
+};

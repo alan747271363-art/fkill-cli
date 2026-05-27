@@ -6,6 +6,7 @@ import delay from 'delay';
 import noopProcess from 'noop-process';
 import {processExists} from 'process-exists';
 import getPort from 'get-port';
+import {createTopLevelProcessChoices, groupProcessesByName} from './interactive.js';
 
 const noopProcessKilled = async (t, pid) => {
 	// Ensure the noop process has time to exit
@@ -96,4 +97,60 @@ if (process.platform !== 'win32') {
 test('silent flag with -s shortflag works', async t => {
 	const {exitCode} = await execa('./cli.js', ['-s', '--force', ':1337']);
 	t.is(exitCode, 0);
+});
+
+test('groupProcessesByName groups same-name processes', t => {
+	const processes = [
+		{pid: 111, name: 'alpha'},
+		{pid: 222, name: 'beta'},
+		{pid: 333, name: 'alpha'},
+	];
+
+	const groups = groupProcessesByName(processes);
+
+	t.is(groups.length, 2);
+	t.is(groups[0].name, 'alpha');
+	t.is(groups[0].processes.length, 2);
+	t.is(groups[1].name, 'beta');
+});
+
+test('createTopLevelProcessChoices adds kill-all choices after duplicate names', t => {
+	const processes = [
+		{
+			pid: 111,
+			name: 'alpha',
+			ports: [],
+			cpu: 0,
+			memory: 0,
+			cmd: '',
+		},
+		{
+			pid: 222,
+			name: 'beta',
+			ports: [],
+			cpu: 0,
+			memory: 0,
+			cmd: '',
+		},
+		{
+			pid: 333,
+			name: 'alpha',
+			ports: [],
+			cpu: 0,
+			memory: 0,
+			cmd: '',
+		},
+	];
+
+	const choices = createTopLevelProcessChoices(processes, {});
+
+	t.is(choices.length, 4);
+	t.deepEqual(choices.map(choice => choice.value), [
+		111,
+		333,
+		[111, 333],
+		222,
+	]);
+
+	t.is(choices[2].name, 'Kill all 2 alpha processes');
 });
