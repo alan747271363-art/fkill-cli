@@ -51,6 +51,8 @@ $ fkill --help
 ## Interactive UI
 
 Run `fkill` without arguments to launch the interactive UI.
+When multiple matching processes have the same name, the interactive UI also
+shows a choice to kill all of them at once.
 
 ![](screenshot.svg)
 
